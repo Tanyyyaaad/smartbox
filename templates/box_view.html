@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="background: white; border-radius: 16px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.05);">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px;">
+        <div style="width: 40px; height: 40px; background: {{ box.color }}; border-radius: 12px;"></div>
+        <h2 style="margin:0;">📦 {{ box.name }}</h2>
+    </div>
+    <p style="font-size: 1.2rem; margin-bottom: 30px;">{{ box.content }}</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 20px;">
+        <span><strong>Владелец:</strong> {{ owner.username }}</span>
+        <span class="text-muted">Коробка №{{ box.box_number }} у пользователя</span>
+    </div>
+</div>
+<p style="margin-top: 20px;"><a href="javascript:history.back()">← Назад</a></p>
+{% endblock %}
