@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>📦 Смартбокс</h1>
+<p>Управляй коробками с помощью QR-кодов</p>
+{% if not current_user.is_authenticated %}
+    <a href="{{ url_for('login') }}" class="button">Войти</a>
+    <a href="{{ url_for('register') }}" class="button">Зарегистрироваться</a>
+{% else %}
+    <a href="{{ url_for('dashboard') }}" class="button">Перейти в личный кабинет</a>
+{% endif %}
+{% endblock %}
