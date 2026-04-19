@@ -1,16 +1,15 @@
-import os
-import uuid
-import qrcode
-from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import qrcode
+from io import BytesIO
 from PIL import ImageDraw, ImageFont
+import uuid
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'секретный-ключ-смени-потом'
+app.config['SECRET_KEY'] = 'секретный-ключ'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartbox.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
