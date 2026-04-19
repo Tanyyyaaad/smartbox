@@ -17,7 +17,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# ---------- Модели ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -44,7 +43,6 @@ class Box(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ---------- Вспомогательные функции ----------
 def get_next_box_number(user_id):
     last_box = Box.query.filter_by(user_id=user_id).order_by(Box.box_number.desc()).first()
     return (last_box.box_number + 1) if last_box else 1
@@ -73,7 +71,6 @@ def generate_qr_with_number(box_number, username, box_id):
     buffer.seek(0)
     return buffer
 
-# ---------- Маршруты ----------
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -102,4 +99,69 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'PO
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        flash('Неверное имя или пароль')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    boxes = Box.query.filter_by(user_id=current_user.id).order_by(Box.created_at.desc()).all()
+    return render_template('dashboard.html', boxes=boxes)
+
+@app.route('/create_box', methods=['GET', 'POST'])
+@login_required
+def create_box():
+    if request.method == 'POST':
+        name = request.form['name']
+        content = request.form['content']
+        color = request.form.get('color', '#4CAF50')
+        box_number = get_next_box_number(current_user.id)
+        box = Box(user_id=current_user.id, name=name, content=content, color=color, box_number=box_number)
+        db.session.add(box)
+        db.session.commit()
+        qr_buffer = generate_qr_with_number(box_number, current_user.username, box.id)
+        return send_file(qr_buffer, mimetype='image/png', as_attachment=True, download_name=f'box_{box_number}.png')
+    return render_template('create_box.html')
+
+@app.route('/box/<int:box_id>')
+def view_box(box_id):
+    box = Box.query.get_or_404(box_id)
+    return render_template('box_detail.html', box=box)
+
+@app.route('/search', methods=['GET'])
+@login_required
+def search():
+    query = request.args.get('q', '')
+    if query:
+        results = Box.query.filter(Box.user_id == current_user.id, Box.content.ilike(f'%{query}%')).all()
+    else:
+        results = []
+    return render_template('search_results.html', query=query, results=results)
+
+@app.route('/download_qr/<int:box_id>')
+@login_required
+def download_qr(box_id):
+    box = Box.query.get_or_404(box_id)
+    if box.user_id != current_user.id:
+        flash('Не ваша коробка')
+        return redirect(url_for('dashboard'))
+    qr_buffer = generate_qr_with_number(box.box_number, current_user.username, box.id)
+    return send_file(qr_buffer, mimetype='image/png', as_attachment=True, download_name=f'box_{box.box_number}.png')
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
