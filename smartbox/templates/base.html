@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Смартбокс</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .nav { margin-bottom: 20px; }
+        .nav a { margin-right: 15px; text-decoration: none; color: #4CAF50; }
+        .flash { background: #ffeb3b; padding: 10px; margin-bottom: 15px; border-radius: 8px; }
+        button, .button { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; }
+        .box-card { border: 1px solid #ddd; border-radius: 12px; padding: 15px; margin-bottom: 15px; background: #fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Главная</a>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}">Мои коробки</a>
+                <a href="{{ url_for('logout') }}">Выйти ({{ current_user.username }})</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Вход</a>
+                <a href="{{ url_for('register') }}">Регистрация</a>
+            {% endif %}
+        </div>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash">
+                    {% for message in messages %}
+                        <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

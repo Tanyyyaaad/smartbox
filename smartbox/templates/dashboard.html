@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Мои коробки</h1>
+<a href="{{ url_for('create_box') }}" class="button">➕ Создать новую коробку</a>
+
+<form method="GET" action="{{ url_for('search') }}" style="margin: 20px 0;">
+    <input type="text" name="q" placeholder="Поиск по содержимому (например, тапки)" value="{{ request.args.get('q', '') }}">
+    <button type="submit">🔍 Найти</button>
+</form>
+
+<div class="boxes">
+    {% for box in boxes %}
+    <div class="box-card" style="border-left: 8px solid {{ box.color }};">
+        <h3>{{ box.name }}</h3>
+        <p>{{ box.content[:100] }}{% if box.content|length > 100 %}...{% endif %}</p>
+        <p><small>№ {{ box.box_number }} • создана {{ box.created_at.strftime('%d.%m.%Y') }}</small></p>
+        <a href="{{ url_for('view_box', box_id=box.id) }}">Открыть</a>
+        <a href="{{ url_for('download_qr', box_id=box.id) }}">Скачать QR</a>
+    </div>
+    {% else %}
+        <p>У вас пока нет коробок. Создайте первую!</p>
+    {% endfor %}
+</div>
+{% endblock %}
