@@ -1,9 +1,10 @@
 """
 Сайт «Смартбокс» — учёт коробок с QR‑кодами.
-Финальная версия: в центре QR-кода только номер коробки (без кириллицы).
+Исправленная версия: защита от сбоев, улучшенный QR, постоянная БД PostgreSQL.
 """
 
 import io
+import os
 from datetime import datetime
 from flask import (
     Flask, render_template, request, redirect, url_for, flash,
@@ -18,10 +19,22 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
-# ---------- НАСТРОЙКИ ПРИЛОЖЕНИЯ ----------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartbox.db'
+app.config['SECRET_KEY'] = 'your-super-secret-key-change-in-production-12345'
+
+# ---------- БАЗА ДАННЫХ ----------
+# Render автоматически предоставляет переменную окружения DATABASE_URL для PostgreSQL.
+# Если она есть — используем её, иначе храним всё в файле (только для теста).
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Замена постфикса, требующегося SQLAlchemy
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Запасной вариант для твоего компьютера (SQLite)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartbox.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -29,7 +42,7 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите для доступа к этой странице.'
 
-# ---------- МОДЕЛИ БАЗЫ ДАННЫХ ----------
+# ---------- МОДЕЛИ ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -56,22 +69,17 @@ class Box(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ---------- СОЗДАНИЕ ТАБЛИЦ ПРИ СТАРТЕ ----------
+# Автоматическое создание таблиц при старте
 with app.app_context():
     db.create_all()
 
 # ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
 def get_next_box_number(user_id):
     last_box = Box.query.filter_by(user_id=user_id).order_by(Box.box_number.desc()).first()
-    if last_box:
-        return last_box.box_number + 1
-    return 1
+    return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
-    """
-    Генерирует QR‑код со ссылкой на публичную страницу коробки.
-    В центре крупно отображается только номер коробки.
-    """
+    """Генерирует QR‑код со ссылкой на публичную страницу коробки и крупным номером в центре."""
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
 
@@ -87,22 +95,17 @@ def generate_qr_code(box_id, box_number):
     img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
     draw = ImageDraw.Draw(img)
 
-    # Используем стандартный шрифт (цифры отображаются отлично)
+    # Шрифт (цифры работают и со стандартным)
     try:
-        font = ImageFont.truetype("arial.ttf", 24)  # чуть крупнее
+        font = ImageFont.truetype("arial.ttf", 28)  # крупнее для читаемости
     except IOError:
         font = ImageFont.load_default()
 
     text = str(box_number)
-
-    # Центрируем текст
     bbox = draw.textbbox((0, 0), text, font=font)
-    w = bbox[2] - bbox[0]
-    h = bbox[3] - bbox[1]
-
+    w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
     x = (img.width - w) // 2
     y = (img.height - h) // 2
-
     draw.text((x, y), text, fill="black", font=font)
 
     img_io = io.BytesIO()
@@ -130,21 +133,17 @@ def register():
 
         if not email or not username or not password:
             flash('Все поля обязательны для заполнения.', 'danger')
-            return redirect(url_for('register'))
-        if password != password2:
+        elif password != password2:
             flash('Пароли не совпадают.', 'danger')
-            return redirect(url_for('register'))
-        if User.query.filter_by(email=email).first():
+        elif User.query.filter_by(email=email).first():
             flash('Пользователь с таким email уже существует.', 'danger')
-            return redirect(url_for('register'))
-
-        user = User(email=email, username=username)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-
-        flash('Регистрация прошла успешно! Теперь войдите.', 'success')
-        return redirect(url_for('login'))
+        else:
+            user = User(email=email, username=username)
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            flash('Регистрация прошла успешно! Теперь войдите.', 'success')
+            return redirect(url_for('login'))
 
     return render_template('register.html')
 
@@ -164,7 +163,6 @@ def login():
             return redirect(next_page or url_for('dashboard'))
         else:
             flash('Неверный email или пароль.', 'danger')
-            return redirect(url_for('login'))
 
     return render_template('login.html')
 
@@ -194,7 +192,6 @@ def create_box():
             return redirect(url_for('create_box'))
 
         next_num = get_next_box_number(current_user.id)
-
         box = Box(
             user_id=current_user.id,
             box_number=next_num,
@@ -219,6 +216,8 @@ def create_box():
 def box_view(box_id):
     box = Box.query.get_or_404(box_id)
     owner = User.query.get(box.user_id)
+    if owner is None:
+        owner = type('obj', (object,), {'username': 'Удалённый пользователь'})()
     return render_template('box_view.html', box=box, owner=owner)
 
 @app.route('/box/<int:box_id>/qrcode')
@@ -260,6 +259,5 @@ def not_found_error(error):
 def forbidden_error(error):
     return render_template('base.html', error='Доступ запрещён'), 403
 
-# ---------- ТОЧКА ВХОДА (для локального запуска) ----------
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
