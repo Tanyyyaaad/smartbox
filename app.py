@@ -1,5 +1,6 @@
 """
 Смартбокс — учёт коробок с QR-кодами, фото, редактированием и удалением.
+QR-код содержит ссылку на коробку и крупный номер в белом круге по центру.
 """
 
 import io
@@ -89,21 +90,58 @@ def get_next_box_number(user_id):
     return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
+    """
+    Генерирует QR-код со ссылкой на коробку.
+    В центре — крупный номер, обведённый белым кругом с чёрной рамкой.
+    """
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4,
+    )
     qr.add_data(box_url)
     qr.make(fit=True)
+
     img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
     draw = ImageDraw.Draw(img)
+
+    # Размер изображения
+    width, height = img.size
+
+    # Круг в центре
+    circle_diameter = int(width * 0.28)          # занимает 28% ширины QR
+    circle_radius = circle_diameter // 2
+    circle_x = (width - circle_diameter) // 2
+    circle_y = (height - circle_diameter) // 2
+
+    # Рисуем белый круг с чёрной границей
+    draw.ellipse(
+        [circle_x, circle_y, circle_x + circle_diameter, circle_y + circle_diameter],
+        fill="white",
+        outline="black",
+        width=5
+    )
+
+    # Шрифт для цифры
     try:
-        font = ImageFont.truetype("arial.ttf", 28)
-    except:
+        font = ImageFont.truetype("arial.ttf", circle_diameter // 2)   # крупный шрифт
+    except IOError:
         font = ImageFont.load_default()
+
     text = str(box_number)
-    bbox = draw.textbbox((0,0), text, font=font)
-    w, h = bbox[2]-bbox[0], bbox[3]-bbox[1]
-    draw.text(((img.width-w)//2, (img.height-h)//2), text, fill="black", font=font)
+
+    # Центрируем текст внутри круга
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = circle_x + (circle_diameter - w) // 2
+    y = circle_y + (circle_diameter - h) // 2 - int(h * 0.1)
+
+    draw.text((x, y), text, fill="black", font=font)
+
     img_io = io.BytesIO()
     img.save(img_io, 'PNG')
     img_io.seek(0)
