@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Смартбокс – учёт коробок</title>
     <style>
-        /* Минимальный аккуратный дизайн, адаптивный */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
             line-height: 1.5;
@@ -32,21 +27,15 @@
             justify-content: space-between;
             align-items: center;
         }
-        h1, h2, h3 {
-            color: #0d6efd;
-        }
+        h1, h2, h3 { color: #0d6efd; }
         nav a {
             margin-left: 15px;
             text-decoration: none;
             color: #0d6efd;
             font-weight: 500;
         }
-        nav a:hover {
-            text-decoration: underline;
-        }
-        .content {
-            flex: 1;
-        }
+        nav a:hover { text-decoration: underline; }
+        .content { flex: 1; }
         footer {
             margin-top: 40px;
             padding-top: 20px;
@@ -55,10 +44,7 @@
             color: #6c757d;
             font-size: 0.9rem;
         }
-        .flash-messages {
-            list-style: none;
-            margin-bottom: 20px;
-        }
+        .flash-messages { list-style: none; margin-bottom: 20px; }
         .flash-messages li {
             padding: 10px 15px;
             border-radius: 8px;
@@ -76,11 +62,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             margin-bottom: 20px;
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
+        label { display: block; margin-bottom: 5px; font-weight: 500; }
         input, textarea, select {
             width: 100%;
             padding: 10px;
@@ -89,10 +71,7 @@
             border-radius: 8px;
             font-size: 1rem;
         }
-        input[type="color"] {
-            height: 50px;
-            padding: 5px;
-        }
+        input[type="color"] { height: 50px; padding: 5px; }
         button, .btn {
             background: #0d6efd;
             color: white;
@@ -107,17 +86,13 @@
             border: 1px solid transparent;
             transition: background 0.2s;
         }
-        button:hover, .btn:hover {
-            background: #0b5ed7;
-        }
+        button:hover, .btn:hover { background: #0b5ed7; }
         .btn-outline {
             background: transparent;
             color: #0d6efd;
             border: 1px solid #0d6efd;
         }
-        .btn-outline:hover {
-            background: #e9ecef;
-        }
+        .btn-outline:hover { background: #e9ecef; }
         .box-card {
             background: white;
             border-radius: 12px;
@@ -126,24 +101,25 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             border-left: 8px solid;
         }
-        .box-actions {
-            margin-top: 15px;
+        .box-actions { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .search-bar { display: flex; gap: 10px; margin-bottom: 30px; }
+        .search-bar input { flex: 1; margin-bottom: 0; }
+        .text-muted { color: #6c757d; }
+
+        /* Стиль для демо-предупреждения */
+        .demo-banner {
+            background: linear-gradient(135deg, #ffecb5 0%, #ffe69c 100%);
+            border: 1px solid #ffc107;
+            color: #664d03;
+            padding: 12px 18px;
+            border-radius: 10px;
+            margin-bottom: 24px;
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.95rem;
         }
-        .search-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-        }
-        .search-bar input {
-            flex: 1;
-            margin-bottom: 0;
-        }
-        .text-muted {
-            color: #6c757d;
-        }
+        .demo-banner strong { font-weight: 600; }
         @media (max-width: 600px) {
             body { padding: 12px; }
             header { flex-direction: column; align-items: start; }
@@ -168,8 +144,19 @@
         </nav>
     </header>
 
+    <!-- Демо-предупреждение (только если нет постоянной базы) -->
+    {% if not permanent_db %}
+    <div class="demo-banner">
+        <span style="font-size:1.4rem;">⚠️</span>
+        <div>
+            <strong>Демо-режим.</strong>
+            Сайт работает на бесплатном хостинге. Данные (регистрации, коробки) могут сбрасываться при перезапуске сервера.
+            Это не баг — так устроен бесплатный тариф.
+        </div>
+    </div>
+    {% endif %}
+
     <div class="content">
-        <!-- Вывод flash-сообщений -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <ul class="flash-messages">
@@ -180,12 +167,11 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Основной контент страницы -->
         {% block content %}{% endblock %}
     </div>
 
     <footer>
-        <p>© 2025 Смартбокс – сделано @Исакова Татьяна</p>
+        <p>© 2026 Смартбокс – сделано @Исакова Татьяна</p>
     </footer>
 </body>
 </html>
