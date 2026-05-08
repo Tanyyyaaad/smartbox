@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>✏️ Редактировать коробку №{{ box.box_number }}</h2>
+<form method="post" enctype="multipart/form-data">
+    <label>Название</label>
+    <input type="text" name="name" value="{{ box.name }}" required>
+
+    <label>Содержимое</label>
+    <textarea name="content" rows="4" required>{{ box.content }}</textarea>
+
+    <label>Цвет рамки</label>
+    <input type="color" name="color" value="{{ box.color }}">
+
+    <label>Новое фото (если хотите заменить)</label>
+    <input type="file" name="photo" accept="image/*">
+    {% if box.photo %}
+        <p>Текущее фото: <img src="{{ url_for('uploaded_file', filename=box.photo) }}" style="max-width: 200px; border-radius: 8px;"></p>
+    {% endif %}
+
+    <button type="submit">💾 Сохранить изменения</button>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline" style="margin-left: 10px;">Отмена</a>
+</form>
+{% endblock %}

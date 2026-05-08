@@ -2,7 +2,6 @@
 {% block content %}
 <h2>Мои коробки</h2>
 
-<!-- Строка поиска -->
 <form class="search-bar" action="{{ url_for('search') }}" method="get">
     <input type="text" name="q" placeholder="Найти по содержимому..." required>
     <button type="submit">🔍 Искать</button>
@@ -11,12 +10,23 @@
 {% if boxes %}
     {% for box in boxes %}
     <div class="box-card" style="border-left-color: {{ box.color }};">
-        <h3>📦 №{{ box.box_number }} – {{ box.name }}</h3>
-        <p><strong>Содержимое:</strong> {{ box.content }}</p>
-        <p><span class="text-muted">Цвет: {{ box.color }} | Создана: {{ box.created_at.strftime('%d.%m.%Y %H:%M') }}</span></p>
+        <div style="display: flex; gap: 20px; align-items: flex-start;">
+            {% if box.photo %}
+                <img src="{{ url_for('uploaded_file', filename=box.photo) }}" alt="Фото коробки" style="width: 120px; height: auto; border-radius: 8px; object-fit: cover;">
+            {% endif %}
+            <div style="flex: 1;">
+                <h3>📦 №{{ box.box_number }} – {{ box.name }}</h3>
+                <p><strong>Содержимое:</strong> {{ box.content }}</p>
+                <p class="text-muted">Цвет: {{ box.color }} | Создана: {{ box.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+            </div>
+        </div>
         <div class="box-actions">
             <a class="btn" href="{{ url_for('box_view', box_id=box.id) }}" target="_blank">👁️ Просмотр</a>
-            <a class="btn btn-outline" href="{{ url_for('download_qr', box_id=box.id) }}">⬇️ Скачать QR</a>
+            <a class="btn btn-outline" href="{{ url_for('download_qr', box_id=box.id) }}">⬇️ QR</a>
+            <a class="btn btn-outline" href="{{ url_for('edit_box', box_id=box.id) }}">✏️ Редактировать</a>
+            <form method="POST" action="{{ url_for('delete_box', box_id=box.id) }}" onsubmit="return confirm('Точно удалить коробку?');" style="display:inline;">
+                <button type="submit" class="btn btn-outline" style="color:#dc3545; border-color:#dc3545;">🗑️ Удалить</button>
+            </form>
         </div>
     </div>
     {% endfor %}

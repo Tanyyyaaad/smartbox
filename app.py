@@ -1,22 +1,35 @@
 """
-Сайт «Смартбокс» — учёт коробок с QR‑кодами.
-Постоянная БД через PostgreSQL или временная SQLite для демо.
+Смартбокс — учёт коробок с QR-кодами, фото, редактированием и удалением.
 """
 
 import io
 import os
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, abort
+from werkzeug.utils import secure_filename
+from flask import (
+    Flask, render_template, request, redirect, url_for, flash,
+    send_file, abort, send_from_directory
+)
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_login import (
+    LoginManager, UserMixin, login_user, logout_user,
+    login_required, current_user
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
+# ---------- НАСТРОЙКИ ----------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-super-secret-key-change-12345'
+app.config['SECRET_KEY'] = 'change-me-to-some-random-string'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Определяем, какая база данных используется
+# Папка для загруженных фото
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+
+# База данных: если есть DATABASE_URL (PostgreSQL), берём её, иначе SQLite
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
     if database_url.startswith("postgres://"):
@@ -27,13 +40,15 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartbox.db'
     app.config['PERMANENT_DB'] = False
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Создаём папку uploads, если её нет
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите.'
 
+# ---------- МОДЕЛИ ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -54,14 +69,20 @@ class Box(db.Model):
     name = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     color = db.Column(db.String(7), default='#e0e0e0')
+    photo = db.Column(db.String(300), nullable=True)   # имя файла фото
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Создаём таблицы при старте
 with app.app_context():
     db.create_all()
+
+# ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_next_box_number(user_id):
     last_box = Box.query.filter_by(user_id=user_id).order_by(Box.box_number.desc()).first()
@@ -88,11 +109,22 @@ def generate_qr_code(box_id, box_number):
     img_io.seek(0)
     return img_io
 
-# Контекст-процессор, чтобы base.html знал, постоянная ли БД
+def save_photo(file):
+    """Сохраняет загруженный файл и возвращает имя файла."""
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Добавляем микросекунды, чтобы имена не повторялись
+        unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+        return unique_name
+    return None
+
+# Контекст-процессор для демо-баннера
 @app.context_processor
 def inject_db_status():
-    return dict(permanent_db=app.config['PERMANENT_DB'])
+    return dict(permanent_db=app.config.get('PERMANENT_DB', False))
 
+# ---------- МАРШРУТЫ ----------
 @app.route('/')
 def index():
     return redirect(url_for('dashboard') if current_user.is_authenticated else url_for('login'))
@@ -132,7 +164,8 @@ def login():
         if user and user.check_password(pwd):
             login_user(user, remember=True)
             flash('Добро пожаловать!', 'success')
-            return redirect(request.args.get('next') or url_for('dashboard'))
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('dashboard'))
         else:
             flash('Неверный email или пароль', 'danger')
     return render_template('login.html')
@@ -160,14 +193,78 @@ def create_box():
         if not name or not content:
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('create_box'))
+
+        # Обработка фото
+        photo_file = request.files.get('photo')
+        photo_filename = save_photo(photo_file) if photo_file else None
+
         next_num = get_next_box_number(current_user.id)
-        box = Box(user_id=current_user.id, box_number=next_num, name=name, content=content, color=color)
+        box = Box(
+            user_id=current_user.id,
+            box_number=next_num,
+            name=name,
+            content=content,
+            color=color,
+            photo=photo_filename
+        )
         db.session.add(box)
         db.session.commit()
         qr_img = generate_qr_code(box.id, box.box_number)
         return send_file(qr_img, mimetype='image/png', as_attachment=True,
                          download_name=f'qr_box_{box.box_number}.png')
     return render_template('create_box.html')
+
+@app.route('/edit/<int:box_id>', methods=['GET','POST'])
+@login_required
+def edit_box(box_id):
+    box = Box.query.get_or_404(box_id)
+    if box.user_id != current_user.id:
+        abort(403)
+
+    if request.method == 'POST':
+        box.name = request.form.get('name', '').strip()
+        box.content = request.form.get('content', '').strip()
+        box.color = request.form.get('color', '#e0e0e0')
+
+        if not box.name or not box.content:
+            flash('Название и содержимое обязательны', 'danger')
+            return redirect(url_for('edit_box', box_id=box.id))
+
+        # Обработка нового фото (если загрузили)
+        photo_file = request.files.get('photo')
+        if photo_file and photo_file.filename:
+            # Удаляем старое фото, если было
+            if box.photo:
+                old_path = os.path.join(app.config['UPLOAD_FOLDER'], box.photo)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            new_photo = save_photo(photo_file)
+            if new_photo:
+                box.photo = new_photo
+
+        db.session.commit()
+        flash('Коробка обновлена!', 'success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('edit_box.html', box=box)
+
+@app.route('/delete/<int:box_id>', methods=['POST'])
+@login_required
+def delete_box(box_id):
+    box = Box.query.get_or_404(box_id)
+    if box.user_id != current_user.id:
+        abort(403)
+
+    # Удаляем фото с диска, если есть
+    if box.photo:
+        photo_path = os.path.join(app.config['UPLOAD_FOLDER'], box.photo)
+        if os.path.exists(photo_path):
+            os.remove(photo_path)
+
+    db.session.delete(box)
+    db.session.commit()
+    flash('Коробка удалена.', 'info')
+    return redirect(url_for('dashboard'))
 
 @app.route('/box/<int:box_id>/view')
 def box_view(box_id):
@@ -186,6 +283,10 @@ def download_qr(box_id):
     qr_img = generate_qr_code(box.id, box.box_number)
     return send_file(qr_img, mimetype='image/png', as_attachment=True,
                      download_name=f'qr_box_{box.box_number}.png')
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/search')
 @login_required

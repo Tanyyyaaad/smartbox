@@ -5,6 +5,11 @@
         <div style="width: 40px; height: 40px; background: {{ box.color }}; border-radius: 12px;"></div>
         <h2 style="margin:0;">📦 {{ box.name }}</h2>
     </div>
+
+    {% if box.photo %}
+        <img src="{{ url_for('uploaded_file', filename=box.photo) }}" alt="Фото коробки" style="max-width: 100%; border-radius: 12px; margin-bottom: 20px;">
+    {% endif %}
+
     <p style="font-size: 1.2rem; margin-bottom: 30px;">{{ box.content }}</p>
     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 20px;">
         <span><strong>Владелец:</strong> {{ owner.username }}</span>
