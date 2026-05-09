@@ -1,6 +1,6 @@
 """
-Смартбокс — учёт коробок с QR-кодами, фото, редактированием и удалением.
-QR-код содержит ссылку на коробку и крупный номер в белом круге по центру.
+Смартбокс — учёт коробок с QR-кодами, несколькими фото, редактированием и удалением.
+QR-код: жирная цифра в маленьком белом круге по центру.
 """
 
 import io
@@ -30,7 +30,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 
-# База данных: если есть DATABASE_URL (PostgreSQL), берём её, иначе SQLite
+# База данных: если есть DATABASE_URL (PostgreSQL), используем его, иначе SQLite
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
     if database_url.startswith("postgres://"):
@@ -70,8 +70,15 @@ class Box(db.Model):
     name = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     color = db.Column(db.String(7), default='#e0e0e0')
-    photo = db.Column(db.String(300), nullable=True)   # имя файла фото
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Связь с несколькими фотографиями
+    photos = db.relationship('BoxPhoto', backref='box', lazy=True, cascade='all, delete-orphan')
+
+class BoxPhoto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    box_id = db.Column(db.Integer, db.ForeignKey('box.id'), nullable=False)
+    filename = db.Column(db.String(300), nullable=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -90,10 +97,7 @@ def get_next_box_number(user_id):
     return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
-    """
-    Генерирует QR-код со ссылкой на коробку.
-    В центре — крупный номер, обведённый белым кругом с чёрной рамкой.
-    """
+    """QR-код с очень крупной цифрой в маленьком белом круге."""
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
 
@@ -108,37 +112,40 @@ def generate_qr_code(box_id, box_number):
 
     img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
     draw = ImageDraw.Draw(img)
-
-    # Размер изображения
     width, height = img.size
 
-    # Круг в центре
-    circle_diameter = int(width * 0.28)          # занимает 28% ширины QR
+    # Круг теперь меньше — 20% от ширины QR
+    circle_diameter = int(width * 0.20)
     circle_radius = circle_diameter // 2
     circle_x = (width - circle_diameter) // 2
     circle_y = (height - circle_diameter) // 2
 
-    # Рисуем белый круг с чёрной границей
+    # Белый круг с тонкой чёрной рамкой
     draw.ellipse(
         [circle_x, circle_y, circle_x + circle_diameter, circle_y + circle_diameter],
         fill="white",
         outline="black",
-        width=5
+        width=4
     )
 
-    # Шрифт для цифры
+    # Шрифт — огромный, почти во всю высоту круга
+    font_size = int(circle_diameter * 0.85)  # 85% от диаметра
     try:
-        font = ImageFont.truetype("arial.ttf", circle_diameter // 2)   # крупный шрифт
+        # Попробуем жирный Arial, если есть
+        font = ImageFont.truetype("arialbd.ttf", font_size)
     except IOError:
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("arial.ttf", font_size)
+        except IOError:
+            font = ImageFont.load_default()
 
     text = str(box_number)
 
-    # Центрируем текст внутри круга
+    # Центрируем цифру внутри круга
     bbox = draw.textbbox((0, 0), text, font=font)
     w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = circle_x + (circle_diameter - w) // 2
-    y = circle_y + (circle_diameter - h) // 2 - int(h * 0.1)
+    y = circle_y + (circle_diameter - h) // 2 - int(h * 0.15)  # оптический сдвиг вверх
 
     draw.text((x, y), text, fill="black", font=font)
 
@@ -148,10 +155,9 @@ def generate_qr_code(box_id, box_number):
     return img_io
 
 def save_photo(file):
-    """Сохраняет загруженный файл и возвращает имя файла."""
+    """Сохраняет один файл и возвращает уникальное имя."""
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        # Добавляем микросекунды, чтобы имена не повторялись
         unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
         return unique_name
@@ -232,9 +238,8 @@ def create_box():
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('create_box'))
 
-        # Обработка фото
-        photo_file = request.files.get('photo')
-        photo_filename = save_photo(photo_file) if photo_file else None
+        # Получаем список загруженных фото
+        uploaded_files = request.files.getlist('photos')
 
         next_num = get_next_box_number(current_user.id)
         box = Box(
@@ -242,10 +247,19 @@ def create_box():
             box_number=next_num,
             name=name,
             content=content,
-            color=color,
-            photo=photo_filename
+            color=color
         )
         db.session.add(box)
+        db.session.flush()  # чтобы получить box.id
+
+        # Сохраняем каждое фото
+        for file in uploaded_files:
+            if file and file.filename:
+                saved_name = save_photo(file)
+                if saved_name:
+                    photo = BoxPhoto(box_id=box.id, filename=saved_name)
+                    db.session.add(photo)
+
         db.session.commit()
         qr_img = generate_qr_code(box.id, box.box_number)
         return send_file(qr_img, mimetype='image/png', as_attachment=True,
@@ -268,23 +282,38 @@ def edit_box(box_id):
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('edit_box', box_id=box.id))
 
-        # Обработка нового фото (если загрузили)
-        photo_file = request.files.get('photo')
-        if photo_file and photo_file.filename:
-            # Удаляем старое фото, если было
-            if box.photo:
-                old_path = os.path.join(app.config['UPLOAD_FOLDER'], box.photo)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-            new_photo = save_photo(photo_file)
-            if new_photo:
-                box.photo = new_photo
+        # Добавляем новые фото (если загружены)
+        uploaded_files = request.files.getlist('photos')
+        for file in uploaded_files:
+            if file and file.filename:
+                saved_name = save_photo(file)
+                if saved_name:
+                    photo = BoxPhoto(box_id=box.id, filename=saved_name)
+                    db.session.add(photo)
 
         db.session.commit()
         flash('Коробка обновлена!', 'success')
         return redirect(url_for('dashboard'))
 
     return render_template('edit_box.html', box=box)
+
+@app.route('/delete_photo/<int:photo_id>', methods=['POST'])
+@login_required
+def delete_photo(photo_id):
+    photo = BoxPhoto.query.get_or_404(photo_id)
+    box = Box.query.get(photo.box_id)
+    if box.user_id != current_user.id:
+        abort(403)
+
+    # Удаляем файл с диска
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    db.session.delete(photo)
+    db.session.commit()
+    flash('Фото удалено.', 'info')
+    return redirect(url_for('edit_box', box_id=box.id))
 
 @app.route('/delete/<int:box_id>', methods=['POST'])
 @login_required
@@ -293,11 +322,11 @@ def delete_box(box_id):
     if box.user_id != current_user.id:
         abort(403)
 
-    # Удаляем фото с диска, если есть
-    if box.photo:
-        photo_path = os.path.join(app.config['UPLOAD_FOLDER'], box.photo)
-        if os.path.exists(photo_path):
-            os.remove(photo_path)
+    # Удаляем все фото коробки с диска
+    for photo in box.photos:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     db.session.delete(box)
     db.session.commit()

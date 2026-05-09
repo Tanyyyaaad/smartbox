@@ -6,8 +6,12 @@
     {% for box in results %}
     <div class="box-card" style="border-left-color: {{ box.color }};">
         <div style="display: flex; gap: 20px;">
-            {% if box.photo %}
-                <img src="{{ url_for('uploaded_file', filename=box.photo) }}" style="width: 100px; border-radius: 8px;">
+            {% if box.photos %}
+                <div style="display: flex; gap: 3px; flex-wrap: wrap; max-width: 100px;">
+                    {% for photo in box.photos[:2] %}
+                        <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;">
+                    {% endfor %}
+                </div>
             {% endif %}
             <div>
                 <h3>📦 №{{ box.box_number }} – {{ box.name }}</h3>

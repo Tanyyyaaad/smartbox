@@ -11,11 +11,27 @@
     <label>Цвет рамки</label>
     <input type="color" name="color" value="{{ box.color }}">
 
-    <label>Новое фото (если хотите заменить)</label>
-    <input type="file" name="photo" accept="image/*">
-    {% if box.photo %}
-        <p>Текущее фото: <img src="{{ url_for('uploaded_file', filename=box.photo) }}" style="max-width: 200px; border-radius: 8px;"></p>
-    {% endif %}
+    <!-- Текущие фотографии -->
+    <label style="margin-top:10px;">📸 Текущие фотографии</label>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        {% for photo in box.photos %}
+        <div style="position: relative; display: inline-block;">
+            <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">
+            <form method="post" action="{{ url_for('delete_photo', photo_id=photo.id) }}" style="position: absolute; top: -8px; right: -8px;" onsubmit="return confirm('Удалить это фото?');">
+                <button type="submit" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; line-height: 1; cursor: pointer;">✕</button>
+            </form>
+        </div>
+        {% else %}
+        <p style="color: #999;">Фотографий пока нет</p>
+        {% endfor %}
+    </div>
+
+    <!-- Загрузка новых фото -->
+    <label>📸 Добавить ещё фото (можно несколько)</label>
+    <div style="border: 2px dashed #ccc; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 15px;">
+        <input type="file" name="photos" accept="image/*" multiple style="display: block; margin: 10px auto 0 auto;">
+        <small style="color: #999;">JPG, PNG, GIF, WebP (до 16 МБ каждый)</small>
+    </div>
 
     <button type="submit">💾 Сохранить изменения</button>
     <a href="{{ url_for('dashboard') }}" class="btn btn-outline" style="margin-left: 10px;">Отмена</a>
