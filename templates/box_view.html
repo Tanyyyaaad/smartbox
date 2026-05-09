@@ -7,9 +7,11 @@
     </div>
 
     {% if box.photos %}
-        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+        <!-- Галерея всех фото -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;">
             {% for photo in box.photos %}
-                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" style="max-width: 200px; max-height: 200px; border-radius: 12px; object-fit: cover;">
+                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" 
+                     style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; border: 1px solid #eee;">
             {% endfor %}
         </div>
     {% endif %}

@@ -3,22 +3,22 @@
 <h2>➕ Новая коробка</h2>
 <form method="post" enctype="multipart/form-data">
     <label>Название коробки</label>
-    <input type="text" name="name" required placeholder="Например, «Зимние вещи»">
+    <input type="text" name="name" required placeholder="Например, «Обувь»">
 
     <label>Содержимое</label>
-    <textarea name="content" rows="4" required placeholder="Куртка, шапка, перчатки..."></textarea>
+    <textarea name="content" rows="4" required placeholder="Тапки, берцы, кроссы..."></textarea>
 
     <label>Цвет коробки</label>
     <input type="color" name="color" value="#e0e0e0">
 
-    <!-- Загрузка нескольких фото (ОБЯЗАТЕЛЬНО multiple) -->
+    <!-- 📸 ЗАГРУЗКА НЕСКОЛЬКИХ ФОТО -->
     <label style="margin-top:10px;">📸 Фотографии (можно выбрать сразу много)</label>
-    <div style="border: 2px dashed #ccc; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 15px;">
-        <p style="margin-bottom: 10px; color: #666;">Нажмите, чтобы выбрать файлы (или перетащите)</p>
+    <div style="border: 2px dashed #4CAF50; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 15px; background: #f9fff9;">
+        <p style="margin-bottom: 10px; color: #2d6a2d;"><strong>Выберите файлы или перетащите их сюда</strong></p>
         <input type="file" name="photos" accept="image/*" multiple style="display: block; margin: 0 auto;">
-        <small style="color: #999;">JPG, PNG, GIF, WebP (до 16 МБ каждый)</small>
+        <small style="color: #555;">JPG, PNG, GIF, WebP (до 500 файлов за раз)</small>
     </div>
 
-    <button type="submit" style="margin-top: 10px;">📦 Создать и скачать QR‑код</button>
+    <button type="submit" style="margin-top: 10px; background: #4CAF50;">📦 Создать и скачать QR‑код</button>
 </form>
 {% endblock %}

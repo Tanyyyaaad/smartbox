@@ -1,5 +1,5 @@
 """
-Смартбокс — учёт коробок с QR-кодами, несколькими фото, редактированием и удалением.
+Смартбокс — учёт коробок с QR-кодами, множеством фото, редактированием и удалением.
 QR-код: огромная цифра в маленьком белом круге по центру.
 Поддерживает загрузку множества фотографий (хоть 300).
 """
@@ -96,7 +96,6 @@ def get_next_box_number(user_id):
     return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
-    """QR-код с огромной цифрой в маленьком белом круге."""
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
 
@@ -113,13 +112,11 @@ def generate_qr_code(box_id, box_number):
     draw = ImageDraw.Draw(img)
     width, height = img.size
 
-    # Маленький круг — 15% ширины QR
     circle_diameter = int(width * 0.15)
     circle_radius = circle_diameter // 2
     circle_x = (width - circle_diameter) // 2
     circle_y = (height - circle_diameter) // 2
 
-    # Тонкая рамка
     draw.ellipse(
         [circle_x, circle_y, circle_x + circle_diameter, circle_y + circle_diameter],
         fill="white",
@@ -127,7 +124,6 @@ def generate_qr_code(box_id, box_number):
         width=2
     )
 
-    # Гигантский шрифт (92% диаметра)
     font_size = int(circle_diameter * 0.92)
     try:
         font = ImageFont.truetype("arialbd.ttf", font_size)
@@ -151,7 +147,6 @@ def generate_qr_code(box_id, box_number):
     return img_io
 
 def save_photo(file):
-    """Сохраняет один файл и возвращает уникальное имя."""
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
@@ -233,7 +228,7 @@ def create_box():
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('create_box'))
 
-        uploaded_files = request.files.getlist('photos')
+        uploaded_files = request.files.getlist('photos')  # ключ 'photos' !
         next_num = get_next_box_number(current_user.id)
         box = Box(
             user_id=current_user.id,
@@ -274,7 +269,7 @@ def edit_box(box_id):
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('edit_box', box_id=box.id))
 
-        uploaded_files = request.files.getlist('photos')
+        uploaded_files = request.files.getlist('photos')  # ключ 'photos' !
         for file in uploaded_files:
             if file and file.filename:
                 saved_name = save_photo(file)
