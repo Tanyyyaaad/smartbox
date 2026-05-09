@@ -1,6 +1,7 @@
 """
 Смартбокс — учёт коробок с QR-кодами, несколькими фото, редактированием и удалением.
-QR-код: жирная цифра в маленьком белом круге по центру.
+QR-код: огромная цифра в маленьком белом круге по центру.
+Поддерживает загрузку множества фотографий (хоть 300).
 """
 
 import io
@@ -72,7 +73,6 @@ class Box(db.Model):
     color = db.Column(db.String(7), default='#e0e0e0')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Связь с несколькими фотографиями
     photos = db.relationship('BoxPhoto', backref='box', lazy=True, cascade='all, delete-orphan')
 
 class BoxPhoto(db.Model):
@@ -84,7 +84,6 @@ class BoxPhoto(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Создаём таблицы при старте
 with app.app_context():
     db.create_all()
 
@@ -97,7 +96,7 @@ def get_next_box_number(user_id):
     return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
-    """QR-код с очень крупной цифрой в маленьком белом круге."""
+    """QR-код с огромной цифрой в маленьком белом круге."""
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
 
@@ -114,24 +113,23 @@ def generate_qr_code(box_id, box_number):
     draw = ImageDraw.Draw(img)
     width, height = img.size
 
-    # Круг теперь меньше — 20% от ширины QR
-    circle_diameter = int(width * 0.20)
+    # Маленький круг — 15% ширины QR
+    circle_diameter = int(width * 0.15)
     circle_radius = circle_diameter // 2
     circle_x = (width - circle_diameter) // 2
     circle_y = (height - circle_diameter) // 2
 
-    # Белый круг с тонкой чёрной рамкой
+    # Тонкая рамка
     draw.ellipse(
         [circle_x, circle_y, circle_x + circle_diameter, circle_y + circle_diameter],
         fill="white",
         outline="black",
-        width=4
+        width=2
     )
 
-    # Шрифт — огромный, почти во всю высоту круга
-    font_size = int(circle_diameter * 0.85)  # 85% от диаметра
+    # Гигантский шрифт (92% диаметра)
+    font_size = int(circle_diameter * 0.92)
     try:
-        # Попробуем жирный Arial, если есть
         font = ImageFont.truetype("arialbd.ttf", font_size)
     except IOError:
         try:
@@ -140,12 +138,10 @@ def generate_qr_code(box_id, box_number):
             font = ImageFont.load_default()
 
     text = str(box_number)
-
-    # Центрируем цифру внутри круга
     bbox = draw.textbbox((0, 0), text, font=font)
     w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = circle_x + (circle_diameter - w) // 2
-    y = circle_y + (circle_diameter - h) // 2 - int(h * 0.15)  # оптический сдвиг вверх
+    y = circle_y + (circle_diameter - h) // 2
 
     draw.text((x, y), text, fill="black", font=font)
 
@@ -163,7 +159,6 @@ def save_photo(file):
         return unique_name
     return None
 
-# Контекст-процессор для демо-баннера
 @app.context_processor
 def inject_db_status():
     return dict(permanent_db=app.config.get('PERMANENT_DB', False))
@@ -238,9 +233,7 @@ def create_box():
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('create_box'))
 
-        # Получаем список загруженных фото
         uploaded_files = request.files.getlist('photos')
-
         next_num = get_next_box_number(current_user.id)
         box = Box(
             user_id=current_user.id,
@@ -250,9 +243,8 @@ def create_box():
             color=color
         )
         db.session.add(box)
-        db.session.flush()  # чтобы получить box.id
+        db.session.flush()
 
-        # Сохраняем каждое фото
         for file in uploaded_files:
             if file and file.filename:
                 saved_name = save_photo(file)
@@ -282,7 +274,6 @@ def edit_box(box_id):
             flash('Название и содержимое обязательны', 'danger')
             return redirect(url_for('edit_box', box_id=box.id))
 
-        # Добавляем новые фото (если загружены)
         uploaded_files = request.files.getlist('photos')
         for file in uploaded_files:
             if file and file.filename:
@@ -305,7 +296,6 @@ def delete_photo(photo_id):
     if box.user_id != current_user.id:
         abort(403)
 
-    # Удаляем файл с диска
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -322,7 +312,6 @@ def delete_box(box_id):
     if box.user_id != current_user.id:
         abort(403)
 
-    # Удаляем все фото коробки с диска
     for photo in box.photos:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
         if os.path.exists(file_path):
