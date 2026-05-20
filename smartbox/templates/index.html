@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Добро пожаловать в Смартбокс</h2>
+<p>Управляйте своими коробками и создавайте QR‑коды для быстрого доступа.</p>
+<p><a class="btn" href="{{ url_for('login') }}">Войти</a> или <a href="{{ url_for('register') }}">зарегистрироваться</a>.</p>
+{% endblock %}
