@@ -1,6 +1,6 @@
 """
-Смартбокс — учёт коробок с QR-кодами, несколькими фото, редактированием и удалением.
-QR-код: огромная цифра в маленьком белом круге по центру.
+Смартбокс — учёт коробок с QR-кодами, фото, редактированием и удалением.
+QR-код: котик держит табличку с номером коробки (координаты под 1254x1254).
 """
 
 import io
@@ -25,12 +25,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'change-me-to-some-random-string'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Папка для загруженных фото
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 
-# База данных: если есть DATABASE_URL (PostgreSQL), используем его, иначе SQLite
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
     if database_url.startswith("postgres://"):
@@ -41,7 +39,6 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartbox.db'
     app.config['PERMANENT_DB'] = False
 
-# Создаём папку uploads, если её нет
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
@@ -71,7 +68,6 @@ class Box(db.Model):
     content = db.Column(db.Text, nullable=False)
     color = db.Column(db.String(7), default='#e0e0e0')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
     photos = db.relationship('BoxPhoto', backref='box', lazy=True, cascade='all, delete-orphan')
 
 class BoxPhoto(db.Model):
@@ -83,7 +79,6 @@ class BoxPhoto(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Создаём таблицы при старте
 with app.app_context():
     db.create_all()
 
@@ -96,7 +91,11 @@ def get_next_box_number(user_id):
     return last_box.box_number + 1 if last_box else 1
 
 def generate_qr_code(box_id, box_number):
-    """QR-код с огромной цифрой в маленьком белом круге (без котика)."""
+    """
+    Генерирует QR-код с котиком, который держит табличку с номером коробки.
+    Координаты таблички настроены под картинку 1254x1254 пикселей.
+    Если файл cat_holder.png отсутствует, рисуется белый круг с номером.
+    """
     base_url = request.host_url.rstrip('/')
     box_url = f"{base_url}/box/{box_id}/view"
 
@@ -109,44 +108,79 @@ def generate_qr_code(box_id, box_number):
     qr.add_data(box_url)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
-    draw = ImageDraw.Draw(img)
-    width, height = img.size
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
+    width, height = qr_img.size
 
-    # Маленький круг (15% ширины)
-    circle_diameter = int(width * 0.15)
-    circle_radius = circle_diameter // 2
-    circle_x = (width - circle_diameter) // 2
-    circle_y = (height - circle_diameter) // 2
+    # Пытаемся загрузить котика
+    cat_path = os.path.join(app.root_path, 'static', 'images', 'cat_holder.png')
 
-    # Тонкая рамка
-    draw.ellipse(
-        [circle_x, circle_y, circle_x + circle_diameter, circle_y + circle_diameter],
-        fill="white",
-        outline="black",
-        width=2
-    )
+    if not os.path.exists(cat_path):
+        # Запасной вариант: просто круг с номером
+        draw = ImageDraw.Draw(qr_img)
+        circle_d = int(width * 0.15)
+        cx, cy = (width - circle_d) // 2, (height - circle_d) // 2
+        draw.ellipse([cx, cy, cx + circle_d, cy + circle_d], fill="white", outline="black", width=3)
+        try:
+            font = ImageFont.truetype("arial.ttf", int(circle_d * 0.8))
+        except:
+            font = ImageFont.load_default()
+        text = str(box_number)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((cx + (circle_d - w) // 2, cy + (circle_d - h) // 2), text, fill="black", font=font)
+        img_io = io.BytesIO()
+        qr_img.save(img_io, 'PNG')
+        img_io.seek(0)
+        return img_io
 
-    # Огромный шрифт (92% диаметра)
-    font_size = int(circle_diameter * 0.92)
+    # Открываем котика
+    cat = Image.open(cat_path).convert("RGBA")
+    cat_w, cat_h = cat.size  # должно быть 1254x1254
+
+    # Твои координаты таблички (в пикселях)
+    sign_x1, sign_y1 = 234, 812
+    sign_x2, sign_y2 = 1006, 965
+    sign_w = sign_x2 - sign_x1  # 772
+    sign_h = sign_y2 - sign_y1  # 153
+
+    # Рисуем номер прямо на табличке
+    draw_cat = ImageDraw.Draw(cat)
+
+    # Шрифт под размер таблички
+    font_size = int(sign_h * 0.85)
     try:
         font = ImageFont.truetype("arialbd.ttf", font_size)
-    except IOError:
+    except:
         try:
             font = ImageFont.truetype("arial.ttf", font_size)
-        except IOError:
+        except:
             font = ImageFont.load_default()
 
     text = str(box_number)
-    bbox = draw.textbbox((0, 0), text, font=font)
-    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = circle_x + (circle_diameter - w) // 2
-    y = circle_y + (circle_diameter - h) // 2
+    bbox = draw_cat.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
 
-    draw.text((x, y), text, fill="black", font=font)
+    # Центрируем текст внутри таблички
+    text_x = sign_x1 + (sign_w - text_w) // 2
+    text_y = sign_y1 + (sign_h - text_h) // 2 - int(text_h * 0.1)
+
+    # Закрашиваем табличку белым (если она не полностью белая)
+    draw_cat.rectangle([sign_x1, sign_y1, sign_x2, sign_y2], fill="white")
+    # Рисуем номер
+    draw_cat.text((text_x, text_y), text, fill="black", font=font)
+
+    # Масштабируем котика, чтобы поместился в центр QR
+    max_size = int(width * 0.4)
+    cat.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+    # Вставляем в QR по центру
+    pos_x = (width - cat.size[0]) // 2
+    pos_y = (height - cat.size[1]) // 2
+    qr_img.paste(cat, (pos_x, pos_y), cat)
 
     img_io = io.BytesIO()
-    img.save(img_io, 'PNG')
+    qr_img.save(img_io, 'PNG')
     img_io.seek(0)
     return img_io
 
@@ -159,7 +193,6 @@ def save_photo(file):
         return unique_name
     return None
 
-# Контекст-процессор для демо-баннера
 @app.context_processor
 def inject_db_status():
     return dict(permanent_db=app.config.get('PERMANENT_DB', False))
