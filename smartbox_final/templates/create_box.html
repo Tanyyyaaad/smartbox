@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>➕ Новая коробка</h2>
+<form method="post" enctype="multipart/form-data">
+    <label>Название коробки</label>
+    <input type="text" name="name" required placeholder="Например, «Обувь»">
+
+    <label>Содержимое</label>
+    <textarea name="content" rows="4" required placeholder="Тапки, берцы, кроссы..."></textarea>
+
+    <label>Цвет коробки</label>
+    <input type="color" name="color" value="#e0e0e0">
+
+    <label style="margin-top:10px;">📸 Фотографии (можно выбрать сразу много)</label>
+    <div style="border: 2px dashed #4CAF50; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 15px; background: #f9fff9;">
+        <p style="margin-bottom: 8px; color: #2d6a2d;"><strong>1. Нажмите на кнопку ниже</strong></p>
+        <p style="margin-bottom: 8px; color: #2d6a2d;"><strong>2. В окне проводника зажмите Ctrl и выделите нужные файлы</strong></p>
+        <p style="margin-bottom: 12px; color: #2d6a2d;"><strong>3. Нажмите «Открыть» – все файлы загрузятся разом</strong></p>
+        <input type="file" name="photos" accept="image/*" multiple style="display: block; margin: 0 auto;">
+        <small style="color: #555;">JPG, PNG, GIF, WebP (до 16 МБ каждый)</small>
+    </div>
+
+    <button type="submit" style="margin-top: 10px; background: #4CAF50;">📦 Создать и скачать QR‑код</button>
+</form>
+{% endblock %}
